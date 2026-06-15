@@ -90,6 +90,10 @@ def app() -> None:
         help="Detection sensitivity level: low (fewer false alarms), normal, high, max.",
     )
     parser.add_argument(
+        "--calibration-dir", type=Path, default=None,
+        help="Separate directory for calibration data (threshold from here, detect on data_dir).",
+    )
+    parser.add_argument(
         "--cca-stride", type=int, default=90, help="Temporal max-pool stride.",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging.")
@@ -117,6 +121,7 @@ def app() -> None:
         batch_size=args.batch_size,
         q=q,
         q_init=args.q_init,
+        calibration_dir=args.calibration_dir,
         cca_stride=args.cca_stride,
         verbose=args.verbose,
     )
@@ -132,8 +137,9 @@ def run(
     batch_size: int,
     q: float,
     q_init: float,
-    cca_stride: int,
-    verbose: bool,
+    calibration_dir: Path | None = None,
+    cca_stride: int = 90,
+    verbose: bool = False,
 ) -> None:
     """Run the full HeimDAS anomaly detection pipeline."""
     # Configure logging
@@ -189,18 +195,30 @@ def run(
     with __import__("h5py").File(files[0], "r") as _f:
         meta_spf = _f["data"].shape[0]
     seconds_per_file = meta_spf / meta.fs
-    n_calib_files = max(1, int(round(config.calibration_minutes * 60 / seconds_per_file)))
-    n_calib_files = min(n_calib_files, len(files))
 
-    calib_files = files[:n_calib_files]
-    detection_files = files[n_calib_files:]
-
-    if not detection_files:
-        log.warning(
-            "Data shorter than calibration window. "
-            "Using all data for both calibration and detection."
+    if calibration_dir is not None:
+        # Separate calibration source: calibrate on calibration_dir, detect on ALL of data_dir
+        calib_source_files = discover_files(calibration_dir)
+        n_calib_files = max(1, int(round(config.calibration_minutes * 60 / seconds_per_file)))
+        n_calib_files = min(n_calib_files, len(calib_source_files))
+        calib_files = calib_source_files[:n_calib_files]
+        detection_files = files  # Detect on everything in data_dir
+        log.info(
+            "Using separate calibration directory: %s (%d files)",
+            calibration_dir, n_calib_files,
         )
-        detection_files = files
+    else:
+        n_calib_files = max(1, int(round(config.calibration_minutes * 60 / seconds_per_file)))
+        n_calib_files = min(n_calib_files, len(files))
+        calib_files = files[:n_calib_files]
+        detection_files = files[n_calib_files:]
+
+        if not detection_files:
+            log.warning(
+                "Data shorter than calibration window. "
+                "Using all data for both calibration and detection."
+            )
+            detection_files = files
 
     # Group detection files by hour
     detection_groups = group_files_by_hour(detection_files, meta.fs)
