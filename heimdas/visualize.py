@@ -73,7 +73,7 @@ def render_hour(
     t_start = datetime.fromtimestamp(t0_unix, tz=timezone.utc)
     t_end = datetime.fromtimestamp(t0_unix + duration_s, tz=timezone.utc)
     title = (
-        f"{cable_name} — {t_start.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"{cable_name} | {t_start.strftime('%Y-%m-%d %H:%M:%S')}"
         f" to {t_end.strftime('%H:%M:%S')} UTC"
     )
 
@@ -126,32 +126,33 @@ def render_hour(
 
 
 def render_threshold_history(
-    tau_history: list[tuple[int, float]],
+    tau_history: list[tuple[float, float]],
     output_path: Path,
     cable_name: str,
 ) -> None:
-    """Render a staircase plot of threshold τ over processing hours.
+    """Render a staircase plot of threshold tau over time.
 
     Args:
-        tau_history: List of (hour_index, tau_value) tuples.
+        tau_history: List of (unix_timestamp, tau_value) tuples.
         output_path: Where to save the PNG.
         cable_name: Cable name for the figure title.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    hours = [h for h, _ in tau_history]
-    taus = [t for _, t in tau_history]
+    timestamps = [datetime.fromtimestamp(t, tz=timezone.utc) for t, _ in tau_history]
+    taus = [tau for _, tau in tau_history]
 
     fig, ax = plt.subplots(figsize=(6, 3.5))
 
-    ax.step(hours, taus, where="post", linewidth=2)
-    ax.scatter(hours, taus, s=30, zorder=5)
+    ax.step(timestamps, taus, where="post", linewidth=2)
+    ax.scatter(timestamps, taus, s=30, zorder=5)
 
-    ax.set_xlabel("Hour")
+    ax.set_xlabel("Time (UTC)")
     ax.set_ylabel(r"Threshold $\tau$")
-    ax.set_title(f"{cable_name} — Threshold Evolution")
+    ax.set_title(f"{cable_name} -- Threshold Evolution")
     ax.grid(True, alpha=0.3, linewidth=0.5)
+    fig.autofmt_xdate()
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, bbox_inches="tight")

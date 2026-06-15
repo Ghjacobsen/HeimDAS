@@ -37,7 +37,7 @@ class CableMetadata:
     """Physical properties of the DAS cable, inferred from file headers."""
 
     fs: float  # Native sample rate (Hz)
-    dx: float  # Channel spacing (metres)
+    dx: float  # Effective channel spacing (metres), accounts for channel stride
     n_channels: int  # Number of spatial channels
     t0_unix: float  # UNIX timestamp of first sample in first file
 
@@ -79,14 +79,24 @@ def read_metadata(file_path: Path) -> CableMetadata:
         dx = float(f["header"]["dx"][()])
         t0 = float(f["header"]["time"][()])
 
+        # Determine effective channel spacing from header/channels array.
+        # Some DAS systems subsample spatially (e.g. every 4th channel),
+        # so the true spacing is stride * dx.
+        channel_stride = 1
+        if "channels" in f["header"]:
+            ch = f["header"]["channels"][()]
+            if len(ch) > 1:
+                channel_stride = int(ch[1] - ch[0])
+
     fs = 1.0 / dt
+    effective_dx = dx * channel_stride
     n_channels = data_shape[1]
 
     log.info(
-        "Cable metadata: fs=%.0f Hz, dx=%.3f m, channels=%d, t0=%s",
-        fs, dx, n_channels, t0,
+        "Cable metadata: fs=%.0f Hz, dx=%.3f m (stride=%d, raw_dx=%.3f), channels=%d, t0=%s",
+        fs, effective_dx, channel_stride, dx, n_channels, t0,
     )
-    return CableMetadata(fs=fs, dx=dx, n_channels=n_channels, t0_unix=t0)
+    return CableMetadata(fs=fs, dx=effective_dx, n_channels=n_channels, t0_unix=t0)
 
 
 def load_files(

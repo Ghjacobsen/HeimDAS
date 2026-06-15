@@ -78,10 +78,16 @@ def app() -> None:
         "--batch-size", type=int, default=64, help="Inference batch size.",
     )
     parser.add_argument(
-        "--q", type=float, default=1e-3, help="GPD false-alarm probability.",
+        "--q", type=float, default=None,
+        help="GPD false-alarm probability (overrides --sensitivity).",
     )
     parser.add_argument(
         "--q-init", type=float, default=0.85, help="GPD initial quantile.",
+    )
+    parser.add_argument(
+        "--sensitivity", type=str, default="normal",
+        choices=["low", "normal", "high", "max"],
+        help="Detection sensitivity level: low (fewer false alarms), normal, high, max.",
     )
     parser.add_argument(
         "--cca-stride", type=int, default=90, help="Temporal max-pool stride.",
@@ -89,6 +95,18 @@ def app() -> None:
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging.")
 
     args = parser.parse_args()
+
+    # Sensitivity maps to GPD false-alarm probability q.
+    # Lower q = higher threshold = fewer false positives.
+    # Higher q = lower threshold = more sensitive but more false alarms.
+    sensitivity_map = {
+        "low": 1e-4,    # Very conservative, almost no false alarms
+        "normal": 1e-3,  # Balanced default
+        "high": 5e-3,   # More sensitive, some false positives expected
+        "max": 1e-2,    # Maximum sensitivity, many false positives
+    }
+    q = args.q if args.q is not None else sensitivity_map[args.sensitivity]
+
     run(
         data_dir=args.data_dir,
         output_dir=args.output_dir,
@@ -97,7 +115,7 @@ def app() -> None:
         cable_name=args.cable_name,
         device=args.device,
         batch_size=args.batch_size,
-        q=args.q,
+        q=q,
         q_init=args.q_init,
         cca_stride=args.cca_stride,
         verbose=args.verbose,
@@ -257,8 +275,8 @@ def run(
     # Distance axis: channel_index × dx gives physical distance in metres
     distances_km = np.arange(meta.n_channels) * meta.dx / 1000.0
 
-    # Track threshold evolution for staircase plot
-    tau_history: list[tuple[int, float]] = [(0, current_tau)]
+    # Track threshold evolution for staircase plot (timestamp, tau)
+    tau_history: list[tuple[float, float]] = [(meta.t0_unix, current_tau)]
 
     # Process files in small chunks to avoid OOM
     chunk_size = max(1, int(30 / seconds_per_file))  # ~30s per chunk
@@ -276,8 +294,8 @@ def run(
         from scipy.ndimage import median_filter as _medfilt
 
         pooled_chunks: list[np.ndarray] = []
+        raw_chunks: list[np.ndarray] = []
         reservoir_for_refit: list[np.ndarray] = []
-        raw_sample: np.ndarray | None = None
         t0_hour: float | None = None
         total_raw_samples = 0
         stride = config.cca_stride
@@ -289,12 +307,9 @@ def run(
             if t0_hour is None:
                 t0_hour = chunk_t0
 
-            # Keep first + last chunks subsampled for visualization
-            if raw_sample is None:
-                raw_sample = chunk_raw[::max(1, chunk_raw.shape[0] // 500)]
-            elif ci + chunk_size >= len(file_group):
-                tail = chunk_raw[::max(1, chunk_raw.shape[0] // 500)]
-                raw_sample = np.concatenate([raw_sample, tail], axis=0)
+            # Keep subsampled raw for visualization (uniform across all chunks)
+            step = max(1, chunk_raw.shape[0] // 200)
+            raw_chunks.append(chunk_raw[::step])
 
             # Resample + normalize + infer
             chunk_resampled = resample_temporal(
@@ -326,13 +341,17 @@ def run(
                 pooled_chunks.append(pooled)
             del res_filt
 
-        # Concatenate compressed detection grid (~90× smaller than raw residual)
+        # Concatenate compressed detection grid (~90x smaller than raw residual)
         if pooled_chunks:
             pooled_grid = np.concatenate(pooled_chunks, axis=0)
         else:
             pooled_grid = np.zeros((0, meta.n_channels), dtype=np.float32)
         del pooled_chunks
         duration_s = total_raw_samples / meta.fs
+
+        # Build raw waterfall from all chunks (subsampled)
+        raw_sample = np.concatenate(raw_chunks, axis=0)
+        del raw_chunks
 
         # Detect events on pre-compressed grid (skip median+pool inside detect)
         from .detection import detect_events_from_pooled
@@ -368,7 +387,7 @@ def run(
         refit_data = np.concatenate(reservoir_for_refit, axis=0)
         del reservoir_for_refit
         current_tau = _refit_threshold(refit_data, current_tau, config)
-        tau_history.append((hour_idx + 1, current_tau))
+        tau_history.append((t0_hour + duration_s, current_tau))
         del refit_data
 
     # ── Step 7: Render threshold evolution ──
