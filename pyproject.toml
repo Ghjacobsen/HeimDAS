@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "heimdas"
+version = "1.0.0"
+description = "HeimDAS — Unsupervised anomaly detection for Distributed Acoustic Sensing"
+authors = [{ name = "Gustav Jacobsen" }]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "h5py>=3.10",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "scienceplots>=2.1",
+    "scipy>=1.12",
+    "scikit-image>=0.22",
+    "torch>=2.1",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+heimdas = "heimdas.cli:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "D", "UP"]
+ignore = ["D100", "D104", "UP017"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["heimdas"]
