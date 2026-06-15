@@ -23,7 +23,9 @@ to track environmental drift. Detected events are segmented, georeferenced in
 distance and time, and exported as JSON plus publication-quality figures.
 
 <p align="center">
-  <video src="assets/demo.mp4" autoplay loop muted playsinline width="700"></video>
+  <a href="assets/demo.mp4">
+    <img src="https://img.shields.io/badge/▶_Watch_Detection_Demo-blue?style=for-the-badge" alt="Watch Demo">
+  </a>
 </p>
 
 ## Quickstart
