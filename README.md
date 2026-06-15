@@ -10,6 +10,10 @@ impractical. HeimDAS automates the process: it learns what normal cable behaviou
 looks like, sets a statistically principled detection threshold, and flags
 anomalous events without requiring labelled training data or manual tuning.
 
+<p align="center">
+  <img src="assets/raw_das.png" alt="Raw DAS waterfall example" width="700">
+</p>
+
 ## How it works
 
 A convolutional autoencoder reconstructs short signal patches. Patches that
@@ -17,6 +21,10 @@ reconstruct poorly are anomalous. The detection threshold is set automatically
 using Extreme Value Theory (Generalised Pareto Distribution), and refits hourly
 to track environmental drift. Detected events are segmented, georeferenced in
 distance and time, and exported as JSON plus publication-quality figures.
+
+<p align="center">
+  <video src="assets/demo.mp4" autoplay loop muted playsinline width="700"></video>
+</p>
 
 ## Quickstart
 
