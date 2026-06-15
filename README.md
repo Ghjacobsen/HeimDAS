@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="HeimDAS" width="400">
+</p>
+
 # HeimDAS
 
 Distributed Acoustic Sensing (DAS) produces massive volumes of strain-rate data
