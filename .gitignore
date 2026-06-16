@@ -7,7 +7,6 @@ build/
 .ruff_cache/
 
 # HeimDAS runtime outputs
-results/
 logs/
 output/
 jobs/
