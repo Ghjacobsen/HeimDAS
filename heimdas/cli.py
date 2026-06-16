@@ -185,9 +185,22 @@ def run(
         cable_name, meta.fs, meta.dx, meta.n_channels,
     )
 
-    # ── Create timestamped run folder ──
-    run_timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-    run_dir = output_dir / f"run_{run_timestamp}"
+    # ── Create named run folder: {cable_slug}_run_{N} ──
+    cable_slug = (
+        cable_name.lower()
+        .replace(" ", "_").replace("æ", "ae").replace("ø", "o").replace("å", "aa")
+    )
+    cable_slug = "".join(c for c in cable_slug if c.isalnum() or c == "_")
+    # Find next run number for this cable
+    existing = sorted(output_dir.glob(f"{cable_slug}_run_*")) if output_dir.exists() else []
+    run_num = 1
+    for p in existing:
+        try:
+            n = int(p.name.rsplit("_", 1)[-1])
+            run_num = max(run_num, n + 1)
+        except ValueError:
+            pass
+    run_dir = output_dir / f"{cable_slug}_run_{run_num}"
     run_dir.mkdir(parents=True, exist_ok=True)
     log.info("Run output directory: %s", run_dir)
 
