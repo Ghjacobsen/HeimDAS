@@ -30,6 +30,7 @@ Each run creates a timestamped output folder containing all artefacts.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import logging
 import sys
@@ -325,9 +326,10 @@ def run(
             if t0_hour is None:
                 t0_hour = chunk_t0
 
-            # Keep subsampled raw for visualization (uniform across all chunks)
-            step = max(1, chunk_raw.shape[0] // 200)
-            raw_chunks.append(chunk_raw[::step])
+            # Keep subsampled raw for visualization (cap total to ~2000 rows per hour)
+            max_raw_rows_per_chunk = max(1, 2000 // max(1, len(file_group) // chunk_size))
+            step = max(1, chunk_raw.shape[0] // max_raw_rows_per_chunk)
+            raw_chunks.append(chunk_raw[::step].copy())
 
             # Resample + normalize + infer
             chunk_resampled = resample_temporal(
@@ -407,6 +409,7 @@ def run(
         current_tau = _refit_threshold(refit_data, current_tau, config)
         tau_history.append((t0_hour + duration_s, current_tau))
         del refit_data
+        gc.collect()
 
     # ── Step 7: Render threshold evolution ──
     if len(tau_history) > 1:

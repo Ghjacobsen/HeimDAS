@@ -10,9 +10,14 @@ build/
 results/
 logs/
 output/
+jobs/
 
 # Test data symlinks
 data_2h/
+data_config_a/
+data_config_b/
+data_config_b_1h/
+data_shefa/
 
 # IDE
 .vscode/
